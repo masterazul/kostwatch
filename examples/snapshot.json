@@ -1,0 +1,29 @@
+[
+  {
+    "namespace": "payments",
+    "name": "api",
+    "replicas": 6,
+    "cpu_request": 1.0,
+    "mem_request": 1073741824.0,
+    "cpu_usage": 0.12,
+    "mem_usage": 251658240.0
+  },
+  {
+    "namespace": "search",
+    "name": "indexer",
+    "replicas": 3,
+    "cpu_request": 2.0,
+    "mem_request": 4294967296.0,
+    "cpu_usage": 1.6,
+    "mem_usage": 3774873600.0
+  },
+  {
+    "namespace": "legacy",
+    "name": "cron-runner",
+    "replicas": 2,
+    "cpu_request": 0.5,
+    "mem_request": 536870912.0,
+    "cpu_usage": 0.001,
+    "mem_usage": 8388608.0
+  }
+]
