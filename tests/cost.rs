@@ -54,9 +54,36 @@ fn flags_idle_workload() {
 }
 
 #[test]
+fn findings_sorted_by_savings_desc() {
+    let gib = 1024.0_f64.powi(3);
+    let over = Workload {
+        namespace: "n".to_string(),
+        name: "over".to_string(),
+        replicas: 4,
+        cpu_request: 2.0,
+        mem_request: gib,
+        cpu_usage: 0.1,
+        mem_usage: gib * 0.1,
+    };
+    let tight = Workload {
+        namespace: "n".to_string(),
+        name: "tight".to_string(),
+        replicas: 1,
+        cpu_request: 1.0,
+        mem_request: gib,
+        cpu_usage: 0.95,
+        mem_usage: gib * 0.95,
+    };
+    let report = analyze(&[tight, over], &Pricing::default());
+    assert!(report.findings[0].monthly_savings >= report.findings[1].monthly_savings);
+    assert_eq!(report.findings[0].name, "over");
+}
+
+#[test]
 fn parses_and_merges_prometheus_vectors() {
     let cpu_req = json!({"status":"success","data":{"resultType":"vector","result":[
-        {"metric":{"namespace":"web","pod":"api-1"},"value":[1700000000.0,"0.5"]}
+        {"metric":{"namespace":"web","pod":"api-1"},"value":[1700000000.0,"0.5"]},
+        {"metric":{"namespace":"web"},"value":[1700000000.0,"9.9"]}
     ]}});
     let cpu_use = json!({"status":"success","data":{"resultType":"vector","result":[
         {"metric":{"namespace":"web","pod":"api-1"},"value":[1700000000.0,"0.05"]}
