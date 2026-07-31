@@ -71,10 +71,10 @@ fn analyze_cmd(args: &[String]) -> ExitCode {
             Err(e) => return fail(&format!("snapshot: {e}")),
         }
     } else if let Some(url) = flag(args, "--prometheus") {
-        let mut queries = Queries::default();
-        if let Some(label) = flag(args, "--label") {
-            queries.label = label.to_string();
-        }
+        let queries = match flag(args, "--label") {
+            Some(label) => Queries::with_label(label),
+            None => Queries::default(),
+        };
         match prom::fetch(&Client::new(url), &queries) {
             Ok(w) => w,
             Err(e) => return fail(&format!("prometheus: {e}")),

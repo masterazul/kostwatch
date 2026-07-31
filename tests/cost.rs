@@ -1,6 +1,6 @@
 use kostwatch::cost::{analyze, monthly_cost, HOURS_PER_MONTH};
 use kostwatch::model::{Pricing, Workload};
-use kostwatch::prom::{merge, parse_vector};
+use kostwatch::prom::{merge, parse_vector, Queries};
 use serde_json::json;
 
 fn approx(a: f64, b: f64) -> bool {
@@ -73,4 +73,16 @@ fn parses_and_merges_prometheus_vectors() {
     assert!(approx(merged[0].cpu_request, 0.5));
     assert!(approx(merged[0].cpu_usage, 0.05));
     assert_eq!(merged[0].replicas, 1);
+}
+
+#[test]
+fn label_flag_changes_query_grouping() {
+    let default = Queries::default();
+    assert!(default.cpu_request.contains("sum by (namespace, pod)"));
+    assert_eq!(default.label, "pod");
+
+    let workload = Queries::with_label("workload");
+    assert!(workload.cpu_request.contains("sum by (namespace, workload)"));
+    assert!(workload.mem_usage.contains("sum by (namespace, workload)"));
+    assert_eq!(workload.label, "workload");
 }

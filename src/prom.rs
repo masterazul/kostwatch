@@ -13,15 +13,21 @@ pub struct Queries {
     pub label: String,
 }
 
+impl Queries {
+    pub fn with_label(label: &str) -> Self {
+        Queries {
+            cpu_request: format!("sum by (namespace, {label}) (kube_pod_container_resource_requests{{resource=\"cpu\"}})"),
+            mem_request: format!("sum by (namespace, {label}) (kube_pod_container_resource_requests{{resource=\"memory\"}})"),
+            cpu_usage: format!("sum by (namespace, {label}) (rate(container_cpu_usage_seconds_total{{container!=\"\"}}[5m]))"),
+            mem_usage: format!("sum by (namespace, {label}) (container_memory_working_set_bytes{{container!=\"\"}})"),
+            label: label.to_string(),
+        }
+    }
+}
+
 impl Default for Queries {
     fn default() -> Self {
-        Queries {
-            cpu_request: "sum by (namespace, pod) (kube_pod_container_resource_requests{resource=\"cpu\"})".to_string(),
-            mem_request: "sum by (namespace, pod) (kube_pod_container_resource_requests{resource=\"memory\"})".to_string(),
-            cpu_usage: "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m]))".to_string(),
-            mem_usage: "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\"})".to_string(),
-            label: "pod".to_string(),
-        }
+        Queries::with_label("pod")
     }
 }
 
