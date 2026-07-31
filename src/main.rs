@@ -137,10 +137,11 @@ fn percent(part: f64, whole: f64) -> f64 {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
+    if s.chars().count() <= max {
         s.to_string()
     } else {
-        format!("{}…", &s[..max - 1])
+        let head: String = s.chars().take(max - 1).collect();
+        format!("{head}…")
     }
 }
 
@@ -180,4 +181,18 @@ fn sample() -> Vec<Workload> {
             mem_usage: 8.0 * mib,
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate;
+
+    #[test]
+    fn truncate_is_utf8_safe() {
+        assert_eq!(truncate("short", 24), "short");
+        let long = "coração-de-um-namespace-bem-longo";
+        let out = truncate(long, 10);
+        assert!(out.chars().count() <= 10);
+        assert!(out.ends_with('…'));
+    }
 }
