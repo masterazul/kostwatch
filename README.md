@@ -52,6 +52,10 @@ label (default `pod`). Pass `--label workload` and the grouping in the queries f
 useful with the kube-prometheus recording rules that expose a `workload` label. The queries
 are sensible defaults; tune them to your cluster.
 
+The client speaks plain HTTP to stay dependency-free (no TLS crate), so point it at an
+in-cluster endpoint or a `kubectl port-forward`; an `https://` URL is rejected up front
+rather than failing with an opaque transport error.
+
 ## Pricing
 
 Defaults are USD `0.04/vCPU-hour` and `0.005/GiB-hour` over a 730-hour month. Override with

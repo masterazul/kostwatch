@@ -71,6 +71,9 @@ fn analyze_cmd(args: &[String]) -> ExitCode {
             Err(e) => return fail(&format!("snapshot: {e}")),
         }
     } else if let Some(url) = flag(args, "--prometheus") {
+        if url.trim_start().to_ascii_lowercase().starts_with("https://") {
+            return fail("prometheus: https endpoints are not supported (built without TLS); use an in-cluster http:// url or a local port-forward");
+        }
         let queries = match flag(args, "--label") {
             Some(label) => Queries::with_label(label),
             None => Queries::default(),
