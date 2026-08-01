@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use serde_json::Value;
@@ -58,6 +58,7 @@ pub fn parse_vector(body: &Value, label: &str) -> Vec<(String, String, f64)> {
             .and_then(|pair| pair.get(1))
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<f64>().ok())
+            .filter(|v| v.is_finite())
             .unwrap_or(0.0);
         if !name.is_empty() {
             out.push((namespace, name, value));
@@ -98,13 +99,19 @@ pub fn merge(
     for (ns, name, v) in mem_req {
         slot(&mut map, ns, name).mem_request = *v;
     }
+    let mut measured: BTreeSet<(String, String)> = BTreeSet::new();
     for (ns, name, v) in cpu_use {
         slot(&mut map, ns, name).cpu_usage = *v;
+        measured.insert((ns.clone(), name.clone()));
     }
     for (ns, name, v) in mem_use {
         slot(&mut map, ns, name).mem_usage = *v;
+        measured.insert((ns.clone(), name.clone()));
     }
-    map.into_values().collect()
+    map.into_iter()
+        .filter(|(key, _)| measured.contains(key))
+        .map(|(_, workload)| workload)
+        .collect()
 }
 
 pub struct Client {

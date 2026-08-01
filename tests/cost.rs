@@ -103,6 +103,31 @@ fn parses_and_merges_prometheus_vectors() {
 }
 
 #[test]
+fn workload_without_usage_series_is_dropped() {
+    let req: Vec<(String, String, f64)> = vec![
+        ("web".to_string(), "novo".to_string(), 4.0),
+        ("web".to_string(), "medido".to_string(), 1.0),
+    ];
+    let uso: Vec<(String, String, f64)> = vec![("web".to_string(), "medido".to_string(), 0.5)];
+    let vazio: Vec<(String, String, f64)> = Vec::new();
+
+    let merged = merge(&req, &vazio, &uso, &vazio);
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].name, "medido");
+}
+
+#[test]
+fn non_finite_samples_become_zero() {
+    let body = json!({"status":"success","data":{"resultType":"vector","result":[
+        {"metric":{"namespace":"web","pod":"a"},"value":[1700000000.0,"NaN"]},
+        {"metric":{"namespace":"web","pod":"b"},"value":[1700000000.0,"+Inf"]}
+    ]}});
+    let rows = parse_vector(&body, "pod");
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|(_, _, v)| v.is_finite()));
+}
+
+#[test]
 fn label_flag_changes_query_grouping() {
     let default = Queries::default();
     assert!(default.cpu_request.contains("sum by (namespace, pod)"));
