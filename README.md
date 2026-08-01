@@ -5,9 +5,12 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-2021-orange.svg)
 
-Kubernetes cost optimizer. It compares what your workloads **request** against what they
-actually **use**, prices the gap, and tells you where the money is going and how much you
-could save by rightsizing.
+A team asks for 2 vCPUs and burns 0.1. Multiply that by the replica count, then by a
+month, and the gap stops being a rounding error and becomes a line on the invoice.
+
+kostwatch puts a number on that gap. It reads what Kubernetes was asked to reserve, reads
+what the workloads actually use, and reports the difference in money — biggest waste first,
+so the list is already sorted by what is worth your afternoon.
 
 No cluster required to try it — feed it a snapshot:
 
@@ -69,6 +72,19 @@ Defaults are USD `0.04/vCPU-hour` and `0.005/GiB-hour` over a 730-hour month. Ov
 
 Human table by default, or `--json` for the full report (per-workload current cost,
 recommended cost, savings and flags) to pipe into a dashboard.
+
+## Hardening
+
+The pipeline is scoped, not just green.
+
+- Actions run from a commit digest. A tag can be moved; a digest cannot.
+- Workflows declare `permissions: contents: read`, so `GITHUB_TOKEN` has nothing to write with.
+- `cargo audit --deny warnings` runs on every push and again weekly. Dependabot watches the
+  crates and the pinned digests alike.
+- `#![forbid(unsafe_code)]` on both crate roots — enforced by the compiler, not by habit.
+- Release builds keep overflow checks. Paired with `panic = "abort"`, an overflow stops the
+  process instead of wrapping into a wrong answer.
+- `gitleaks` reads the full history on every push.
 
 ## License
 
