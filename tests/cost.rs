@@ -136,7 +136,9 @@ fn label_flag_changes_query_grouping() {
     assert_eq!(default.label, "pod");
 
     let workload = Queries::with_label("workload");
-    assert!(workload.cpu_request.contains("sum by (namespace, workload)"));
+    assert!(workload
+        .cpu_request
+        .contains("sum by (namespace, workload)"));
     assert!(workload.mem_usage.contains("sum by (namespace, workload)"));
     assert_eq!(workload.label, "workload");
 }
