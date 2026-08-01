@@ -38,8 +38,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "sample" => {
-            println!("{}", serde_json::to_string_pretty(&sample()).unwrap());
-            ExitCode::SUCCESS
+            write_out(&serde_json::to_string_pretty(&sample()).unwrap_or_else(|_| "[]".to_string()))
         }
         "analyze" => analyze_cmd(&args[1..]),
         other => {
@@ -49,17 +48,32 @@ fn main() -> ExitCode {
     }
 }
 
-fn flag<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
-    args.iter()
-        .position(|a| a == name)
-        .and_then(|i| args.get(i + 1))
-        .map(String::as_str)
+fn flag<'a>(args: &'a [String], name: &str) -> Result<Option<&'a str>, String> {
+    match args.iter().position(|a| a == name) {
+        None => Ok(None),
+        Some(i) => match args.get(i + 1) {
+            Some(value) if !value.starts_with("--") => Ok(Some(value.as_str())),
+            _ => Err(format!("{name} requires a value")),
+        },
+    }
 }
 
 fn analyze_cmd(args: &[String]) -> ExitCode {
     let json = args.iter().any(|a| a == "--json");
 
-    let pricing = match flag(args, "--pricing") {
+    let (pricing_path, snapshot_path, prometheus_url, label_name) = match (
+        flag(args, "--pricing"),
+        flag(args, "--snapshot"),
+        flag(args, "--prometheus"),
+        flag(args, "--label"),
+    ) {
+        (Ok(p), Ok(s), Ok(u), Ok(l)) => (p, s, u, l),
+        (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => {
+            return fail(&e)
+        }
+    };
+
+    let pricing = match pricing_path {
         Some(path) => match read_json::<Pricing>(path) {
             Ok(p) => p,
             Err(e) => return fail(&format!("pricing: {e}")),
@@ -67,12 +81,12 @@ fn analyze_cmd(args: &[String]) -> ExitCode {
         None => Pricing::default(),
     };
 
-    let workloads = if let Some(path) = flag(args, "--snapshot") {
+    let workloads = if let Some(path) = snapshot_path {
         match read_json::<Vec<Workload>>(path) {
             Ok(w) => w,
             Err(e) => return fail(&format!("snapshot: {e}")),
         }
-    } else if let Some(url) = flag(args, "--prometheus") {
+    } else if let Some(url) = prometheus_url {
         if url
             .trim_start()
             .to_ascii_lowercase()
@@ -80,7 +94,7 @@ fn analyze_cmd(args: &[String]) -> ExitCode {
         {
             return fail("prometheus: https endpoints are not supported (built without TLS); use an in-cluster http:// url or a local port-forward");
         }
-        let queries = match flag(args, "--label") {
+        let queries = match label_name {
             Some(label) => Queries::with_label(label),
             None => Queries::default(),
         };
@@ -97,12 +111,22 @@ fn analyze_cmd(args: &[String]) -> ExitCode {
     }
 
     let report = analyze(&workloads, &pricing);
-    if json {
-        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    let rendered = if json {
+        serde_json::to_string_pretty(&report).unwrap_or_else(|_| "null".to_string())
     } else {
-        print_report(&report);
+        format_report(&report)
+    };
+    write_out(&rendered)
+}
+
+fn write_out(text: &str) -> ExitCode {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    match writeln!(out, "{text}").and_then(|_| out.flush()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+        Err(e) => fail(&e.to_string()),
     }
-    ExitCode::SUCCESS
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, String> {
@@ -110,8 +134,11 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, String> {
     serde_json::from_slice(&raw).map_err(|e| e.to_string())
 }
 
-fn print_report(report: &Report) {
-    println!(
+fn format_report(report: &Report) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
         "monthly cost: {:.2} {}    potential savings: {:.2} {} ({:.0}%)",
         report.total_monthly_cost,
         report.currency,
@@ -119,12 +146,14 @@ fn print_report(report: &Report) {
         report.currency,
         percent(report.total_monthly_savings, report.total_monthly_cost),
     );
-    println!(
+    let _ = writeln!(
+        out,
         "{:<24} {:<16} {:>10} {:>10} {:>10}  flags",
         "namespace", "workload", "cost", "saves", "cpu->"
     );
     for f in &report.findings {
-        println!(
+        let _ = writeln!(
+            out,
             "{:<24} {:<16} {:>10.2} {:>10.2} {:>5.2}->{:<4.2}  {}",
             truncate(&f.namespace, 24),
             truncate(&f.name, 16),
@@ -135,6 +164,7 @@ fn print_report(report: &Report) {
             f.flags.join(","),
         );
     }
+    out.trim_end().to_string()
 }
 
 fn percent(part: f64, whole: f64) -> f64 {
