@@ -58,9 +58,8 @@ pub fn parse_vector(body: &Value, label: &str) -> Vec<(String, String, f64)> {
             .and_then(|pair| pair.get(1))
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<f64>().ok())
-            .filter(|v| v.is_finite())
-            .unwrap_or(0.0);
-        if !name.is_empty() {
+            .filter(|v| v.is_finite());
+        if let (false, Some(value)) = (name.is_empty(), value) {
             out.push((namespace, name, value));
         }
     }
@@ -129,10 +128,11 @@ impl Client {
         }
     }
 
-    pub fn query(&self, promql: &str) -> Result<Value, String> {
+    pub fn query(&self, promql: &str, at: &str) -> Result<Value, String> {
         self.agent
             .get(&format!("{}/api/v1/query", self.base))
             .query("query", promql)
+            .query("time", at)
             .call()
             .map_err(|e| e.to_string())?
             .into_json::<Value>()
@@ -141,9 +141,14 @@ impl Client {
 }
 
 pub fn fetch(client: &Client, queries: &Queries) -> Result<Vec<Workload>, String> {
-    let cpu_req = parse_vector(&client.query(&queries.cpu_request)?, &queries.label);
-    let mem_req = parse_vector(&client.query(&queries.mem_request)?, &queries.label);
-    let cpu_use = parse_vector(&client.query(&queries.cpu_usage)?, &queries.label);
-    let mem_use = parse_vector(&client.query(&queries.mem_usage)?, &queries.label);
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+        .to_string();
+    let cpu_req = parse_vector(&client.query(&queries.cpu_request, &at)?, &queries.label);
+    let mem_req = parse_vector(&client.query(&queries.mem_request, &at)?, &queries.label);
+    let cpu_use = parse_vector(&client.query(&queries.cpu_usage, &at)?, &queries.label);
+    let mem_use = parse_vector(&client.query(&queries.mem_usage, &at)?, &queries.label);
     Ok(merge(&cpu_req, &mem_req, &cpu_use, &mem_use))
 }

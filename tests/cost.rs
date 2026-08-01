@@ -117,13 +117,15 @@ fn workload_without_usage_series_is_dropped() {
 }
 
 #[test]
-fn non_finite_samples_become_zero() {
+fn non_finite_samples_are_discarded() {
     let body = json!({"status":"success","data":{"resultType":"vector","result":[
         {"metric":{"namespace":"web","pod":"a"},"value":[1700000000.0,"NaN"]},
-        {"metric":{"namespace":"web","pod":"b"},"value":[1700000000.0,"+Inf"]}
+        {"metric":{"namespace":"web","pod":"b"},"value":[1700000000.0,"+Inf"]},
+        {"metric":{"namespace":"web","pod":"c"},"value":[1700000000.0,"0.7"]}
     ]}});
     let rows = parse_vector(&body, "pod");
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].1, "c");
     assert!(rows.iter().all(|(_, _, v)| v.is_finite()));
 }
 
